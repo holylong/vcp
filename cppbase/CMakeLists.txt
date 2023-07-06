@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.11)
+
+project(cppbase)
+
+# file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc EXCLUDE PATTERN "complex/*.cc")
+# file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc EXCLUDE FOLDER "complex")
+
+file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc)
+file(GLOB_RECURSE complex_SRCS  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/complex/*.cc)
+
+message(STATUS ${complex_SRCS})
+
+LIST(REMOVE_ITEM ALL_SAMPLE_SRCS ${complex_SRCS})
+
+message(STATUS ${ALL_SAMPLE_SRCS})
+
+foreach(rle IN LISTS ALL_SAMPLE_SRCS)
+	get_filename_component(rlename ${rle} NAME_WE)
+	add_executable(${rlename} ${rle})
+endforeach(rle IN LISTS ALL_SAMPLE_SRCS)
+
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/complex)

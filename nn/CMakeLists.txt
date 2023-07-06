@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.11)
+
+project(net)
+
+# file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc EXCLUDE PATTERN "complex/*.cc")
+# file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc EXCLUDE FOLDER "complex")
+
+file(GLOB_RECURSE ALL_SAMPLE_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*.cc)
+
+foreach(rle IN LISTS ALL_SAMPLE_SRCS)
+	get_filename_component(rlename ${rle} NAME_WE)
+	add_executable(${rlename} ${rle})
+endforeach(rle IN LISTS ALL_SAMPLE_SRCS)
