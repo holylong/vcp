@@ -28,18 +28,28 @@ int main(int argc, char* argv[])
    struct sockaddr_in serv_addr;
    char buf[BUFSIZ];
    int n;
-
+   short port = SERV_PORT;
    char* ddr = const_cast<char*>(SERV_IP);
+
+   if(argc < 3){
+      std::cout << "please input arguments ip port like:" << argv[0] << " " << SERV_IP  << " " << SERV_PORT << std::endl;
+      return -1;
+   }
+
 
    if(argc >  1){
       ddr = argv[1];
+   }
+
+   if(argc > 2){
+      port = atoi(argv[2]);
    }
 
    cfd=socket(AF_INET,SOCK_STREAM,0);
    
    memset(&serv_addr,0,sizeof(serv_addr));
    serv_addr.sin_family = AF_INET;
-   serv_addr.sin_port = htons(SERV_PORT);
+   serv_addr.sin_port = htons(port);
    
    //将点十进制字节串转换为网络字节序
 #ifdef _WIN32
@@ -54,12 +64,16 @@ int main(int argc, char* argv[])
       return -1;
    }
 
-
-
    while(1)
    {
       std::cout << "wait for input..." << std::endl;
-      fgets(buf,sizeof(buf),stdin);
+      fgets(buf, sizeof(buf), stdin);
+      std::string bfs = std::string(buf);
+      std::string::size_type pos = bfs.find("\\r\\n\\r\\n");
+      if(pos != std::string::npos){
+         break;
+      }
+
 #ifdef _WIN32
       send(cfd, buf, strlen(buf), 0);
       n = recv(cfd, buf, sizeof(buf), 0);

@@ -1,8 +1,6 @@
 #ifndef _BASE_SOCKET_H_
 #define _BASE_SOCKET_H_
 
-#include <iostream>
-
 #ifdef _WIN32
 
 #else
@@ -11,8 +9,11 @@
 #include <netinet/in.h>
 #include <memory>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
 #endif
-
+#include <iostream>
+#include <sstream>
 #include "base.h"
 
 namespace wanda {
@@ -105,7 +106,7 @@ namespace wanda {
         class TcpSocketServer{
             public:
                 // TcpSocket(const std::string& host, int port){
-                TcpSocketServer(int port){
+                TcpSocketServer(int port):_stop(false){
                     Init();
                     Bind(port);
                     Listen();
@@ -115,16 +116,81 @@ namespace wanda {
                     _listener = listener;
                 }
 
-                void Accept(){
+                void SetNonBlocking(){
+                    #ifdef _WIN32
+                    unsigned long flag = 1;
+                    if(ioctlsocket(_listenfd, FIONBIO, &flag) == SOCKET_ERROR){
+                    #else
+                    int cflags = fcntl(_listenfd, F_GETFL, 0); 
+                    if(fcntl(_listenfd, F_SETFL, cflags | O_NONBLOCK) == -1){
+                    #endif
+                        std::cerr << "ioctlsocket set non blocking error" << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                void SetBlocking(){
+                    #ifdef _WIN32
+                    unsigned long flag = 0;
+                    if(ioctlsocket(_listenfd, FIONBIO, &flag) == SOCKET_ERROR){
+                    #else
+                    int cflags = fcntl(_listenfd, F_GETFL, 0); 
+                    if(fcntl(_listenfd, F_SETFL, cflags & ~O_NONBLOCK) == -1){
+                    #endif
+                        std::cerr << "ioctlsocket set non blocking error" << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                void SetReuseAddr(){
+                    // Set the socket options
+                    int opt = 1;
+                    #ifdef _WIN32
+                    if (setsockopt(_listenfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt))) {
+                    #else
+                    if (setsockopt(_listenfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+                    #endif
+                        std::cerr << "Error: setting socket options failed" << std::endl;
+                        exit(-2);
+                    }
+                }
+
+                void Loop(){
                     std::cout << "wait client..." << std::endl;
                     while(!_stop){
                         struct sockaddr_in cliaddr;
-                        int clifd = accept(_sockfd, (struct sockaddr*)&cliaddr, NULL);
+                        int clifd = accept(_listenfd, (struct sockaddr*)&cliaddr, NULL);
                         char buffer[1024] = {0}; 
                         inet_ntop(AF_INET, &(cliaddr.sin_addr), buffer, sizeof(buffer));
 
                         _listener->OnConnected(clifd, buffer);
                         WanSleep(1);
+                    }
+                }
+
+            private:
+                void Select(){
+                    int clisocks[FD_SETSIZE] = {0};
+                    fd_set max_fds;
+                    FD_ZERO(&max_fds);
+                    FD_SET(_listenfd, &max_fds);
+                    int maxfd = _listenfd;
+                    fd_set cp_fds = max_fds;
+
+                    if(select(maxfd+1, &max_fds, NULL, NULL, NULL) < 0){
+                        std::cerr << "select event error" << std::endl;
+                        exit(-1);
+                    }
+
+                    for(int i = 0; i < maxfd; i++){
+                        int clisock = clisocks[i];
+                        if(FD_ISSET(clisock, &cp_fds)){
+
+                        }
+                    }
+
+                    if(FD_ISSET(_listenfd, &cp_fds)){
+
                     }
                 }
 
@@ -142,9 +208,9 @@ namespace wanda {
 
             private:
             #if _WIN32
-                SOCKET _sockfd;
+                SOCKET _listenfd;
             #else
-                int    _sockfd;
+                int    _listenfd;
             #endif
                 bool   _stop{false};
 
@@ -152,8 +218,8 @@ namespace wanda {
                 std::shared_ptr<SocketListner> _listener;
 
                 void Init(){
-                    _sockfd = socket(AF_INET, SOCK_STREAM, 0);
-                    if(_sockfd < 0){
+                    _listenfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if(_listenfd < 0){
                         std::cerr << "Error: Could not create socket." << std::endl;
                         exit(1);
                     }
@@ -164,19 +230,66 @@ namespace wanda {
                     seraddr.sin_family = AF_INET;
                     seraddr.sin_port = htons(port);
                     seraddr.sin_addr.s_addr = INADDR_ANY;
-                    if(bind(_sockfd, (struct sockaddr*)&seraddr, sizeof(seraddr)) < 0){
+                    if(bind(_listenfd, (struct sockaddr*)&seraddr, sizeof(seraddr)) < 0){
                         std::cerr << "Error: Could not bind socket." << std::endl;
                         exit(1); 
                     }
                 }
 
                 void Listen(){
-                    if(listen(_sockfd, 10) < 0){
+                    if(listen(_listenfd, 10) < 0){
                         std::cerr << "Error: Could not listen on socket." << std::endl;
                         exit(1);
                     }
                 }
         };
+
+        class SocketUtil{
+            //获取本地连接地址
+            static std::string getSocketIpAddrStr(int sockfd){
+                socklen_t addrLen;
+                struct sockaddr_in skAddr;
+                if(getsockname(sockfd, (struct sockaddr*)&skAddr, &addrLen) == -1){
+                    return std::string("");
+                }
+
+                std::stringstream ss;
+                ss << inet_ntoa(skAddr.sin_addr);
+                ss << ":";
+                ss << ntohs(skAddr.sin_port);
+
+                return ss.str();
+            }
+
+            static std::string getPeerIpAddrStr(int sockfd){
+                socklen_t addrLen;
+                struct sockaddr_in skAddr;
+                if(getpeername(sockfd, (struct sockaddr*)&skAddr, &addrLen) == -1){
+                    return std::string("");
+                }
+
+                std::stringstream ss;
+                char buf[16] = {0};
+                ss << inet_ntop(AF_INET, &skAddr.sin_addr, buf, sizeof(buf));
+                ss << ":";
+                ss << ntohs(skAddr.sin_port);
+
+                return ss.str();
+            }
+        };
+#ifdef _WIN32
+        class WinSockInitial{
+            public:
+                WinSockInitial(){
+                    WSAData data{};
+                    WSAStartup(MAKEWORD(2,2), &data);
+                }
+
+                virtual ~WinSockInitial(){
+                    WSACleanup();
+                }
+        };
+#endif
     }
 }
 

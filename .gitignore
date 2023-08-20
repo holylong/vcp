@@ -6,3 +6,5 @@ video/frame2.ppm
 video/frame3.ppm 
 video/frame4.ppm 
 video/frame5.ppm
+build_ninja 
+build_ninja/

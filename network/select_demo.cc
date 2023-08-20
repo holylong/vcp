@@ -41,7 +41,11 @@ int main(int argc, char* argv[])
   /// FD_SETSIZE=1024,定义数组client来储存已连接描述符，最多1023个
 
   int nready = -1, clients[FD_SETSIZE-1];  
-  char buf[BUFSIZ], str[16];
+#ifdef _WIN32
+   char buf[BUFSIZ];
+#else
+   char buf[BUFSIZ], str[16];
+#endif
 
   struct sockaddr_in clie_addr,serv_addr;
 #ifdef _WIN32
@@ -53,33 +57,39 @@ int main(int argc, char* argv[])
   //定义监听描述符集合allset和发生事件描述符集合readset
   fd_set allset,readset;  
 #ifdef _WIN32
-   memset(&serv_addr,0,sizeof(serv_addr));
+   memset(&serv_addr, 0, sizeof(serv_addr));
 #else
   bzero(&serv_addr, sizeof(serv_addr));
 #endif
 
-   serv_addr.sin_family=AF_INET;
+   serv_addr.sin_family = AF_INET;
    //端口号，将无符号短整型转换为网络字节顺序
-   serv_addr.sin_port=htons(SERV_PORT);
+   serv_addr.sin_port = htons(SERV_PORT);
+
    //一个主机可能有多个网卡，所以是本机的任意IP地址
-   serv_addr.sin_addr.s_addr=htonl(INADDR_ANY);  
- 
+#ifdef _WIN32
+   serv_addr.sin_addr.S_un.S_addr = INADDR_ANY;
+#else
+   serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  
+#endif
    //AF_INET表示使用32位IP地址，SOCK_STREAM表示使用TCP连接
    listenfd = socket(AF_INET,SOCK_STREAM,0); 
 
    int opt = 1;
+#ifdef _WIN32
+   if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt))) {
+#else
    if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+#endif
      std::cerr << "Error: setting socket options failed" << std::endl;
      return 1;
    }
 
-  //将服务器套接字地址与套接字描述符联系起来
-  if(bind(listenfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) != 0){
-   std::cerr << "Error: socket binding failed" <<  std::endl;
-   return 1;
+  if(bind(listenfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) != 0){
+      std::cerr << "Error: socket binding failed" <<  std::endl;
+      return 1;
   }
   
-  //设置可监听的连接数量为1024
   if(listen(listenfd,1024) != 0){
    std::cerr << "Error: socket listening failed" << std::endl;
    return 1;

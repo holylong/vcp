@@ -11,11 +11,14 @@ file(GLOB_RECURSE complex_SRCS  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CUR
 message(STATUS ${complex_SRCS})
 
 LIST(REMOVE_ITEM ALL_SAMPLE_SRCS ${complex_SRCS})
+LIST(REMOVE_ITEM ALL_SAMPLE_SRCS time_use_demo.cc)
 
 message(STATUS ${ALL_SAMPLE_SRCS})
 
 foreach(rle IN LISTS ALL_SAMPLE_SRCS)
 	get_filename_component(rlename ${rle} NAME_WE)
+
+	include_directories(${CMAKE_SOURCE_DIR}/common)
 	add_executable(${rlename} ${rle})
 endforeach(rle IN LISTS ALL_SAMPLE_SRCS)
 
